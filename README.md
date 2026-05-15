@@ -1,30 +1,95 @@
 # java-coverage-skills
 
-Skill pack for Java test coverage automation with four execution scopes:
+Conjunto de skills para automação de cobertura de testes Java com foco em Maven + JaCoCo.
 
-- `java-coverage-full`
-- `java-coverage-module`
-- `java-coverage-file`
-- `java-coverage-diff`
+Escopos disponíveis:
 
-## Versioning
+- `java-coverage-full`: cobertura do projeto inteiro.
+- `java-coverage-module`: cobertura de um módulo específico.
+- `java-coverage-file`: cobertura de uma classe/arquivo específico.
+- `java-coverage-diff`: cobertura apenas do que está em desenvolvimento (não commitado), com gate por linhas em diff.
 
-This repository uses a centralized version source in:
+**Como Importar No Seu Workspace**
+Você pode usar este pacote em um workspace local ou dentro de `.agents/.claude`.
 
-- `skill-pack.xml`
-
-The XML file is the source of truth for package version and included skills.
-
-## Quick Release Flow
-
-1. Edit `skill-pack.xml` and update `<version>`.
-2. Update `CHANGELOG.md`.
-3. Commit and tag:
+Opção 1: copiar a pasta inteira para o workspace:
 
 ```bash
-git add .
-git commit -m "chore(release): vX.Y.Z"
-git tag -a vX.Y.Z -m "java-coverage-skills vX.Y.Z"
-git push origin main
-git push origin vX.Y.Z
+cp -r java-coverage-skills /caminho/do/seu-workspace/skills/
 ```
+
+Opção 2: versionar como subpasta do repositório do projeto:
+
+```bash
+mkdir -p .agents/.claude/skills
+cp -r java-coverage-skills .agents/.claude/skills/
+```
+
+Depois da importação, as skills ficam disponíveis pelos nomes de cada pasta (`java-coverage-full`, `java-coverage-module`, `java-coverage-file`, `java-coverage-diff`).
+
+**Como Usar (Exemplos de Prompt)**
+No chat com o agente, peça explicitamente o escopo desejado.
+
+Projeto inteiro:
+
+- `Use a skill java-coverage-full no projeto /path/do-projeto`
+- `Gere cobertura completa do projeto /path/do-projeto`
+- `Use a skill java-coverage-full para o projeto tal`
+
+Se você não informar caminho no `java-coverage-full`, o agente deve inferir o projeto
+pelos projetos abertos no workspace/IDE. Somente quando não houver candidato claro
+ele deve pedir explicitamente o caminho.
+
+Módulo específico:
+
+- `Use a skill java-coverage-module no módulo billing do projeto /path/do-projeto`
+- `Rode cobertura apenas no módulo payment-service`
+
+Arquivo/classe específica:
+
+- `Use a skill java-coverage-file para src/main/java/com/acme/OrderService.java`
+- `Gere cobertura para a classe OrderService`
+
+Somente o que você desenvolveu:
+
+- `Use a skill java-coverage-diff neste projeto`
+- `Gere cobertura só para o que ainda não foi commitado`
+
+**Como As Skills Funcionam**
+Fluxo base (todas):
+
+1. Valida prontidão do projeto.
+2. Valida dependências de teste no `pom.xml` (`junit`, `mockito`, `jacoco`).
+3. Analisa cobertura inicial.
+4. Planeja geração por prioridade de gap.
+5. Gera/ajusta testes.
+6. Compila e executa testes.
+7. Reanalisa cobertura e repete em ondas até bater gate ou bloquear com motivo explícito.
+
+Regras de gate:
+
+- `full/module/file`: gate por classe (`LINES >= 92%` e `BRANCHES >= 90%`, com exceções de classes sem branch aplicável).
+- `diff`: gate só nas linhas alteradas não commitadas (`staged`, `unstaged`, `untracked`), sem penalizar linhas antigas fora do diff.
+
+Política de progresso:
+
+- `full/module`: geram tracker em `docs/*.md` e atualizam a cada onda.
+- `file/diff`: progresso em memória/console (sem tracker persistido).
+
+Regra importante:
+
+- Se já existe teste para uma classe mas ela continua abaixo do gate, a skill deve adicionar novos testes no arquivo existente para cobrir os gaps.
+
+**Pré-Requisitos**
+
+- Projeto Java com Maven.
+- JaCoCo disponível no build.
+- Recomendado: `mvn test jacoco:report` executável no projeto.
+
+**Versionamento**
+A versão do pacote é centralizada em [skill-pack.xml](./skill-pack.xml) no campo `<version>`.
+
+Arquivos de apoio:
+
+- [CHANGELOG.md](./CHANGELOG.md)
+- [RELEASE.md](./RELEASE.md)

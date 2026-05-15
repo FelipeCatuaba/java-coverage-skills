@@ -1,4 +1,4 @@
----
+﻿---
 name: java-coverage-full
 description: Generates JUnit tests for an entire Java project until reaching 92% line
   coverage and 90% branch coverage. Detects Java version (8, 11, 17+), validates pom.xml
@@ -8,12 +8,13 @@ description: Generates JUnit tests for an entire Java project until reaching 92%
   Don't use for single modules, specific files, or git diff scoped generation.
 ---
 
-# Java Coverage — Full Project
+# Java Coverage â€” Full Project
 
-## Entry Point — Autonomous Execution
+## Entry Point â€” Autonomous Execution
 
 This skill is triggered by phrases like:
 - "use o fluxo completo no projeto <path>"
+- "use a skill java-coverage-full para o projeto tal"
 - "rode a skill completa para o projeto <name>"
 - "run full coverage flow for <project>"
 - "gere cobertura completa do projeto <path>"
@@ -21,10 +22,11 @@ This skill is triggered by phrases like:
 When triggered, execute ALL steps in sequence from Step 1 to Step 8 WITHOUT stopping
 to ask for confirmation between steps. The only situations that require user input are:
 
-- `NOT_READY` in Step 1 — project is not ready, cannot proceed
-- `CONSOLIDATION WARNING` in Step 4 — more than 3 non-canonical test files found
-- `BOUNDARY_VIOLATION` — patch targets src/main/, abort that class and report
+- `NOT_READY` in Step 1 â€” project is not ready, cannot proceed
+- `CONSOLIDATION WARNING` in Step 4 â€” more than 3 non-canonical test files found
+- `BOUNDARY_VIOLATION` â€” patch targets src/main/, abort that class and report
 - `COMPILE_ERROR` or `TESTS_FAILED` after two fix rounds in Step 7.5
+- No explicit project path and no clear project candidate found in open workspace/IDE context
 
 In all other cases: proceed autonomously, print the checkpoint output for each step,
 and continue to the next step immediately.
@@ -32,7 +34,7 @@ and continue to the next step immediately.
 After completing Step 8, print the final tracker from
 `docs/coverage-tracker-full.md` and a one-line summary:
 ```
-SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
+SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED â€” <reason> / <N> BOUNDARY_VIOLATION
 ```
 
 ---
@@ -48,6 +50,12 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
 
 **Step 1: Check Skill Readiness**
 
+0. Resolve `<project_root>`:
+   - If user provided an explicit path, use it.
+   - If path is omitted, infer from open projects in workspace/IDE context.
+   - If exactly one candidate project is open, use it automatically.
+   - If multiple candidates are open, choose the best match using user text hints (project/module name).
+   - If no safe candidate is found, ask user for the project path before continuing.
 1. Run `scripts/check-skill-readiness.py <project_root>` to verify the project
    is ready for coverage generation.
 2. If output is `NOT_READY: <reason>`, report the reason to the user and stop.
@@ -66,10 +74,10 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
    - Re-run until output is `DEPS OK`.
 3. Print:
    ```
-   DEPS STATUS: OK — junit=<version> mockito=<version> jacoco=<version>
+   DEPS STATUS: OK â€” junit=<version> mockito=<version> jacoco=<version>
    ```
 
-**Step 3: Snapshot Coverage — All Classes**
+**Step 3: Snapshot Coverage â€” All Classes**
 
 1. Run `scripts/generate-class-coverage-tracker.py <jacoco_xml_path> <project_root> --report-name coverage-tracker-full.md`.
    The tracker is always saved to `<project_root>/docs/coverage-tracker-full.md` automatically.
@@ -80,9 +88,9 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
    CLASS                    | LINES% | BRANCHES% | LINE_DELTA | BRANCH_DELTA | STATUS
    CustomerService          | 42%    | 38%       | +50%       | +52%         | BELOW_GATE
    LegacyPaymentProcessor   | 0%     | 0%        | +92%       | +90%         | BELOW_GATE
-   InvoiceService           | 95%    | 91%       | —          | —            | GATE_MET
+   InvoiceService           | 95%    | 91%       | â€”          | â€”            | GATE_MET
    ```
-3. Classes where LINES >= 92% AND BRANCHES >= 90% are GATE_MET — exclude from all steps.
+3. Classes where LINES >= 92% AND BRANCHES >= 90% are GATE_MET â€” exclude from all steps.
 4. Do not proceed until the full tracker is printed.
 
 **Step 4: Audit and Consolidate Test Classes**
@@ -97,8 +105,8 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
    - Rename to <ClassName>Test.java via patch.
    - Update tracker: RENAMED.
 4. If more than 3 non-canonical files exist: print
-   CONSOLIDATION WARNING: <ClassName> — <N> files and ask user before proceeding.
-5. Print: AUDIT DONE — consolidated: <N> / renamed: <N>
+   CONSOLIDATION WARNING: <ClassName> â€” <N> files and ask user before proceeding.
+5. Print: AUDIT DONE â€” consolidated: <N> / renamed: <N>
 
 **Step 5: Plan Generation Batch**
 
@@ -109,7 +117,7 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
    Line Delta 16-40%  -> STANDARD  : all public methods + main conditional branches
    Line Delta > 40%   -> FULL      : all public methods, branches, edge cases, mocks
 
-2. Update tracker: PLANNED — strategy=<TARGETED|STANDARD|FULL>.
+2. Update tracker: PLANNED â€” strategy=<TARGETED|STANDARD|FULL>.
 3. Print complete plan before generating any test:
    ```
    GENERATION PLAN:
@@ -124,15 +132,15 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
 1. For each class in the plan, generate tests per strategy and patterns
    in references/java-version-patterns.md.
 2. Read `references/generation-rules.md` before writing any test method.
-   This file is MANDATORY — it defines forbidden patterns and quality requirements.
+   This file is MANDATORY â€” it defines forbidden patterns and quality requirements.
 3. Rules for every generated file:
-   - SCOPE: only write to `src/test/` — never touch any file under `src/main/`.
+   - SCOPE: only write to `src/test/` â€” never touch any file under `src/main/`.
      If a patch path contains `src/main/`, abort it and report BOUNDARY VIOLATION.
    - SONAR: never add classes to `sonar.exclusions` or JaCoCo `<exclude>` rules.
    - QUALITY: no empty tests, no trivial assertNotNull-only tests, no catch-and-ignore.
-   - PUBLIC API: test via public methods simulating real application flow — no reflection,
+   - PUBLIC API: test via public methods simulating real application flow â€” no reflection,
      no Whitebox, no ReflectionTestUtils.
-   - One test class per production class — never create <Name>Test2 or variants.
+   - One test class per production class â€” never create <Name>Test2 or variants.
    - Coverage decides generation, not file existence: if a test file already
      exists but the class is BELOW_GATE, read the existing file first, identify
      which branches and methods are NOT yet covered, and add tests for those gaps.
@@ -140,7 +148,7 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
    - Add methods to the existing file; never create a new file.
    - File name must be exactly <ClassName>Test.java.
 3. Deliver each file as a patch following Step 7.
-4. Update tracker: GENERATED — est_lines=<X>% est_branches=<X>%.
+4. Update tracker: GENERATED â€” est_lines=<X>% est_branches=<X>%.
 
 **Step 7: Patch Encoding Rules**
 
@@ -154,7 +162,7 @@ Every file created or modified must be a patch. Never write raw file content.
    After two failed attempts: report exact error to user and stop.
 4. Mandatory for every patch:
    - No BOM (0xEF 0xBB 0xBF forbidden at file start).
-   - LF only (\n — no \r\n).
+   - LF only (\n â€” no \r\n).
    - UTF-8 without BOM.
 
 **Step 7.5: Compile and Verify Tests**
@@ -162,21 +170,21 @@ Every file created or modified must be a patch. Never write raw file content.
 1. Run `scripts/run-tests-and-verify.py <project_root>` after all patches from
    Step 6 are applied.
 2. Evaluate the output:
-   - `EXIT STATUS: TESTS_OK`: all tests compile and pass — proceed to Step 8.
+   - `EXIT STATUS: TESTS_OK`: all tests compile and pass â€” proceed to Step 8.
    - `COMPILE_ERROR`: one or more test classes failed to compile.
      Fix the affected patch(es) and re-apply before re-running this step.
    - `EXIT STATUS: TESTS_FAILED`: tests compiled but assertions are failing.
      Read the failure details printed per class and fix the test logic before
      re-running this step.
-   - `NO_TESTS_FOUND`: no test classes exist yet for this scope — this is
+   - `NO_TESTS_FOUND`: no test classes exist yet for this scope â€” this is
      expected on the first run before any patches are applied. Proceed to Step 8.
 3. Do NOT run `scripts/check-coverage-gate.py` (Step 8) until this step
    exits with `TESTS_OK` or `NO_TESTS_FOUND`.
 4. Maximum two fix-and-retry rounds per failing class. If a class still fails
-   after two rounds: mark it `NEEDS_REVIEW — test failure` in the tracker,
+   after two rounds: mark it `NEEDS_REVIEW â€” test failure` in the tracker,
    report to user, and skip it in Step 8.
 
-**Step 8: Validate Coverage — Gate is Mandatory**
+**Step 8: Validate Coverage â€” Gate is Mandatory**
 
 Gate: LINES >= 92% AND BRANCHES >= 90% per class. The skill does NOT finish
 until every class in scope reaches the gate or is explicitly blocked by a
@@ -196,18 +204,18 @@ BOUNDARY_VIOLATION or a persistent COMPILE_ERROR / test failure.
      Confirm that the `PROJECT COVERAGE` line at the top reflects the new wave progress.
    - Repeat until the class reaches GATE_MET.
 4. A class may only be marked `BLOCKED` (and excluded from further rounds) if
-   one of these hard blockers applies — document the reason explicitly:
-   - `BLOCKED — boundary`: production class cannot be touched and public API
+   one of these hard blockers applies â€” document the reason explicitly:
+   - `BLOCKED â€” boundary`: production class cannot be touched and public API
      does not expose enough behaviour to reach the gate.
-   - `BLOCKED — compile`: test class fails to compile after three fix attempts.
-   - `BLOCKED — test failure`: tests keep failing after three fix attempts.
-   - `BLOCKED — no branches`: class has N/A branch coverage (interface/enum)
+   - `BLOCKED â€” compile`: test class fails to compile after three fix attempts.
+   - `BLOCKED â€” test failure`: tests keep failing after three fix attempts.
+   - `BLOCKED â€” no branches`: class has N/A branch coverage (interface/enum)
      and lines are >= 92%.
    Any other reason is NOT a valid blocker. Keep generating.
 5. Run `scripts/cleanup-generated-logs.py <project_root>`.
 6. Print the final tracker in full, then print the mandatory summary line:
    ```
-   SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED — <reason> / <N> BOUNDARY_VIOLATION
+   SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED â€” <reason> / <N> BOUNDARY_VIOLATION
    ```
    The skill is only considered finished when every class is either GATE_MET or BLOCKED
    with an explicit documented reason. BELOW_GATE is not an acceptable final state.
@@ -224,8 +232,9 @@ BOUNDARY_VIOLATION or a persistent COMPILE_ERROR / test failure.
 * run-tests-and-verify.py returns COMPILE_ERROR: fix the patch for the affected
   class and re-run before proceeding. Do not validate coverage with broken tests.
 * run-tests-and-verify.py returns TESTS_FAILED after three fix attempts: mark
-  the class as BLOCKED — test failure in the tracker, document the reason,
+  the class as BLOCKED â€” test failure in the tracker, document the reason,
   and report to user. This is the only condition that allows skipping a class.
-* If any patch path contains `src/main/`: BOUNDARY VIOLATION — abort that patch
+* If any patch path contains `src/main/`: BOUNDARY VIOLATION â€” abort that patch
   immediately, report the path to the user, and skip the class. Never modify
   production source files under any circumstance.
+

@@ -2,7 +2,7 @@
 <skillPack>
   <groupId>br.com.felipe.skills</groupId>
   <artifactId>java-coverage-skills</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <name>java-coverage-skills</name>
   <description>Coverage automation skills for Java projects</description>
 
