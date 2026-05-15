@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skillPack>
+  <groupId>br.com.felipe.skills</groupId>
+  <artifactId>java-coverage-skills</artifactId>
+  <version>1.0.0</version>
+  <name>java-coverage-skills</name>
+  <description>Coverage automation skills for Java projects</description>
+
+  <skills>
+    <skill path="skills/java-coverage-full/SKILL.md" />
+    <skill path="skills/java-coverage-module/SKILL.md" />
+    <skill path="skills/java-coverage-file/SKILL.md" />
+    <skill path="skills/java-coverage-diff/SKILL.md" />
+  </skills>
+</skillPack>
+
