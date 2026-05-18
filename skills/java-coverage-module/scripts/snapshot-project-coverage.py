@@ -204,9 +204,7 @@ def main(project_root):
     if not report_path:
         print(
             "REPORT_NOT_FOUND: no jacoco.xml found under project root.\n"
-            "Run one of the following and retry:\n"
-            "  Single module : mvn test jacoco:report\n"
-            "  Multi-module  : mvn test jacoco:report jacoco:report-aggregate",
+            "Run scripts/run-jacoco-report.py <project_root> and retry.",
             file=sys.stderr
         )
         sys.exit(1)
@@ -222,7 +220,7 @@ def main(project_root):
     if not results:
         print(
             "REPORT_NOT_FOUND: jacoco.xml was found but contains no class data.\n"
-            "Ensure tests ran before generating the report: mvn test jacoco:report",
+            "Ensure tests ran before generating the report: scripts/run-jacoco-report.py <project_root>",
             file=sys.stderr
         )
         sys.exit(1)

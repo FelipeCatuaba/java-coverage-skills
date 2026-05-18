@@ -20,22 +20,24 @@ This skill is triggered by phrases like:
 - "gere cobertura completa do projeto <path>"
 
 When triggered, execute ALL steps in sequence from Step 1 to Step 8 WITHOUT stopping
-to ask for confirmation between steps. The only situations that require user input are:
+to ask for confirmation between steps. This flow must run with no user interaction:
 
-- `NOT_READY` in Step 1 â€” project is not ready, cannot proceed
-- `CONSOLIDATION WARNING` in Step 4 â€” more than 3 non-canonical test files found
-- `BOUNDARY_VIOLATION` â€” patch targets src/main/, abort that class and report
-- `COMPILE_ERROR` or `TESTS_FAILED` after two fix rounds in Step 7.5
-- No explicit project path and no clear project candidate found in open workspace/IDE context
+- If blockers happen, continue autonomously where possible.
+- Report unresolved blockers only in final summary.
 
 In all other cases: proceed autonomously, print the checkpoint output for each step,
 and continue to the next step immediately.
+
+Hard rule: this skill must execute the complete cycle (coverage analysis, test generation,
+test execution, coverage re-analysis) and MUST NOT stop after only diagnostic/snapshot output.
+Partial runs are not valid completion.
 
 After completing Step 8, print the final tracker from
 `docs/coverage-tracker-full.md` and a one-line summary:
 ```
 SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED â€” <reason> / <N> BOUNDARY_VIOLATION
 ```
+Completion is valid only when there are zero `BELOW_GATE` classes in scope.
 
 ---
 
@@ -55,10 +57,10 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED â€” <reason> / <N> BOUNDARY_VIOL
    - If path is omitted, infer from open projects in workspace/IDE context.
    - If exactly one candidate project is open, use it automatically.
    - If multiple candidates are open, choose the best match using user text hints (project/module name).
-   - If no safe candidate is found, ask user for the project path before continuing.
+   - If no safe candidate is found, default to current workspace root as `<project_root>`.
 1. Run `scripts/check-skill-readiness.py <project_root>` to verify the project
    is ready for coverage generation.
-2. If output is `NOT_READY: <reason>`, report the reason to the user and stop.
+2. If output is `NOT_READY: <reason>`, mark run as `BLOCKED â€” not ready` and stop.
 3. Print before proceeding:
    ```
    SKILL READY: java=<8|11|17+> build=maven
@@ -104,8 +106,7 @@ SKILL COMPLETE: <N> GATE_MET / <N> BLOCKED â€” <reason> / <N> BOUNDARY_VIOL
 3. If one file exists with a non-canonical name (e.g. CustomerService_ESTest):
    - Rename to <ClassName>Test.java via patch.
    - Update tracker: RENAMED.
-4. If more than 3 non-canonical files exist: print
-   CONSOLIDATION WARNING: <ClassName> â€” <N> files and ask user before proceeding.
+4. If more than 3 non-canonical files exist: auto-consolidate in batches and proceed.
 5. Print: AUDIT DONE â€” consolidated: <N> / renamed: <N>
 
 **Step 5: Plan Generation Batch**
@@ -159,7 +160,7 @@ Every file created or modified must be a patch. Never write raw file content.
    +++ b/src/test/java/com/example/CustomerServiceTest.java
 2. Run scripts/validate-patch.py <patch_file> before presenting.
 3. If BOM_DETECTED or CRLF_DETECTED: fix and re-validate.
-   After two failed attempts: report exact error to user and stop.
+   After two failed attempts: mark class as `BLOCKED â€” patch encoding` and continue.
 4. Mandatory for every patch:
    - No BOM (0xEF 0xBB 0xBF forbidden at file start).
    - LF only (\n â€” no \r\n).
@@ -182,7 +183,7 @@ Every file created or modified must be a patch. Never write raw file content.
    exits with `TESTS_OK` or `NO_TESTS_FOUND`.
 4. Maximum two fix-and-retry rounds per failing class. If a class still fails
    after two rounds: mark it `NEEDS_REVIEW â€” test failure` in the tracker,
-   report to user, and skip it in Step 8.
+   skip it in Step 8, and continue autonomously with remaining classes.
 
 **Step 8: Validate Coverage â€” Gate is Mandatory**
 
@@ -219,16 +220,18 @@ BOUNDARY_VIOLATION or a persistent COMPILE_ERROR / test failure.
    ```
    The skill is only considered finished when every class is either GATE_MET or BLOCKED
    with an explicit documented reason. BELOW_GATE is not an acceptable final state.
+7. If any class remains BELOW_GATE, start a new full wave immediately and continue until
+   the completion condition above is satisfied.
 
 ## Error Handling
 
-* check-skill-readiness.py returns NOT_READY: stop and report. Do not proceed.
-* generate-class-coverage-tracker.py fails REPORT_NOT_FOUND: instruct user to run
-  mvn test jacoco:report and retry.
+* check-skill-readiness.py returns NOT_READY: mark run as `BLOCKED â€” not ready` and stop.
+* generate-class-coverage-tracker.py fails REPORT_NOT_FOUND: run
+  `scripts/run-jacoco-report.py <project_root>` and retry automatically.
 * check-pom-deps.py returns UNSUPPORTED_STRUCTURE: read error section of
   references/pom-dependency-blocks.md and report blocker to user.
-* validate-patch.py returns encoding error after two attempts: stop and report
-  exact file and line to user.
+* validate-patch.py returns encoding error after two attempts: mark class as
+  `BLOCKED â€” patch encoding` and continue with remaining classes.
 * run-tests-and-verify.py returns COMPILE_ERROR: fix the patch for the affected
   class and re-run before proceeding. Do not validate coverage with broken tests.
 * run-tests-and-verify.py returns TESTS_FAILED after three fix attempts: mark
@@ -237,4 +240,5 @@ BOUNDARY_VIOLATION or a persistent COMPILE_ERROR / test failure.
 * If any patch path contains `src/main/`: BOUNDARY VIOLATION â€” abort that patch
   immediately, report the path to the user, and skip the class. Never modify
   production source files under any circumstance.
+
 
