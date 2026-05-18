@@ -19,23 +19,25 @@ This skill is triggered by phrases like:
 - "gere cobertura do mÃ³dulo <name>"
 
 When triggered, execute ALL steps in sequence from Step 1 to Step 9 WITHOUT stopping
-to ask for confirmation between steps. The only situations that require user input are:
+to ask for confirmation between steps. This flow must run with no user interaction:
 
-- `NOT_READY` in Step 2 â€” module is not ready, cannot proceed
-- `NO_MODULES_FOUND` in Step 1 â€” not a multi-module project
-- Module name is ambiguous â€” more than one partial match found in Step 1
-- `CONSOLIDATION WARNING` in Step 5 â€” more than 3 non-canonical test files found
-- `BOUNDARY_VIOLATION` â€” patch targets src/main/, abort that class and report
-- `COMPILE_ERROR` or `TESTS_FAILED` after two fix rounds in Step 8.5
+- No user input is required during execution.
+- If blockers happen, the skill must continue autonomously where possible and
+  only report final blockers in the completion summary.
 
 In all other cases: proceed autonomously, print the checkpoint output for each step,
 and continue to the next step immediately.
+
+Hard rule: this skill must execute the complete cycle (coverage analysis, test generation,
+test execution, coverage re-analysis) and MUST NOT stop after only diagnostic/snapshot output.
+Partial runs are not valid completion.
 
 After completing Step 9, print the final tracker from
 `<project_root>/docs/coverage-tracker-<module_name>.md` and a one-line summary:
 ```
 SKILL COMPLETE (module: <name>): <N> GATE_MET / <N> BLOCKED â€” <reason>
 ```
+Completion is valid only when there are zero `BELOW_GATE` classes in the selected module.
 
 ---
 
@@ -59,12 +61,17 @@ SKILL COMPLETE (module: <name>): <N> GATE_MET / <N> BLOCKED â€” <reason>
    [2] shared-lib         (src/main/java â€” 5 classes)
    ```
 3. If the user already specified a module name: match it against the list.
-   If no module was specified: ask the user to choose before proceeding.
-4. Print the resolved target before proceeding:
+   If no module was specified: auto-select the best candidate module by:
+   - path/name hint from user message;
+   - highest class count if no hint is available.
+4. If module name is ambiguous (multiple partial matches), auto-select using:
+   - exact match > prefix match > contains match;
+   - if still tied, choose the largest module by class count.
+5. Print the resolved target before proceeding:
    ```
    TARGET MODULE: <module_name> â€” root: <module_path>
    ```
-5. Use `<module_path>` as the scoped root for all subsequent steps.
+6. Use `<module_path>` as the scoped root for all subsequent steps.
    Never read or modify files outside this path.
 
 **Step 2: Check Skill Readiness (Module Scope)**
@@ -113,7 +120,7 @@ SKILL COMPLETE (module: <name>): <N> GATE_MET / <N> BLOCKED â€” <reason>
    - Remove non-canonical files via patch.
    - Update tracker: CONSOLIDATED.
 3. If one file with non-canonical name exists: rename via patch. Update tracker: RENAMED.
-4. If more than 3 non-canonical files: print CONSOLIDATION WARNING and ask user.
+4. If more than 3 non-canonical files: auto-consolidate in batches into the canonical file and continue.
 5. Print: AUDIT DONE â€” consolidated: <N> / renamed: <N>
 
 **Step 6: Plan Generation Batch**
@@ -166,7 +173,7 @@ Every file created or modified must be a patch. Never write raw file content.
    +++ b/<module_path>/src/test/java/com/example/PaymentProcessorTest.java
 2. Run scripts/validate-patch.py <patch_file> before presenting.
 3. If BOM_DETECTED or CRLF_DETECTED: fix and re-validate.
-   After two failed attempts: stop and report to user.
+   After two failed attempts: mark class as `BLOCKED â€” patch encoding` and continue with remaining classes.
 4. Mandatory for every patch:
    - No BOM (0xEF 0xBB 0xBF forbidden).
    - LF only (\n â€” no \r\n).
@@ -189,7 +196,7 @@ Every file created or modified must be a patch. Never write raw file content.
    exits with `TESTS_OK` or `NO_TESTS_FOUND`.
 4. Maximum two fix-and-retry rounds per failing class. If a class still fails
    after two rounds: mark it `NEEDS_REVIEW â€” test failure` in the tracker,
-   report to user, and skip it in Step 9.
+   skip it in Step 9, and continue autonomously with remaining classes.
 
 **Step 9: Validate Coverage â€” Gate is Mandatory**
 
@@ -223,16 +230,20 @@ until every class in scope reaches the gate or is explicitly blocked.
    SKILL COMPLETE (module: <name>): <N> GATE_MET / <N> BLOCKED â€” <reason>
    ```
    BELOW_GATE is not an acceptable final state.
+7. If any class remains BELOW_GATE in the module, start a new full wave immediately and
+   continue until the completion condition above is satisfied.
 
 ## Error Handling
 
-* resolve-module.py returns NO_MODULES_FOUND: project may not be multi-module.
-  Suggest using java-coverage-full instead.
-* check-skill-readiness.py returns NOT_READY: stop and report. Do not proceed.
-* generate-class-coverage-tracker.py fails REPORT_NOT_FOUND: instruct user to run
-  mvn test jacoco:report -pl <module_name> and retry.
+* resolve-module.py returns NO_MODULES_FOUND: treat `<project_root>` itself as
+  single module scope and continue with java-coverage-module flow.
+* check-skill-readiness.py returns NOT_READY: mark run as `BLOCKED - not ready`
+  and stop.
+* generate-class-coverage-tracker.py fails REPORT_NOT_FOUND: run
+  `scripts/run-jacoco-report.py <module_path>` and retry automatically.
 * Any patch targeting a file outside <module_path>: abort and report path violation.
-* validate-patch.py encoding error after two attempts: stop and report to user.
+* validate-patch.py encoding error after two attempts: mark class as
+  `BLOCKED â€” patch encoding` and continue with remaining classes.
 * run-tests-and-verify.py returns COMPILE_ERROR: fix the patch for the affected
   class and re-run before proceeding. Do not validate coverage with broken tests.
 * run-tests-and-verify.py returns TESTS_FAILED after three fix attempts: mark
@@ -241,4 +252,5 @@ until every class in scope reaches the gate or is explicitly blocked.
 * If any patch path contains `src/main/`: BOUNDARY VIOLATION â€” abort that patch
   immediately, report the path to the user, and skip the class. Never modify
   production source files under any circumstance.
+
 

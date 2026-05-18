@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Lists or selects modules in a multimodule Maven project.
 Usage:
@@ -22,7 +22,7 @@ def find_modules(project_root):
     try:
         tree = ET.parse(pom_path)
     except ET.ParseError as e:
-        print(f"ERROR: failed to parse pom.xml — {e}", file=sys.stderr)
+        print(f"ERROR: failed to parse pom.xml â€” {e}", file=sys.stderr)
         sys.exit(1)
 
     root = tree.getroot()
@@ -40,12 +40,12 @@ def find_modules(project_root):
 def cmd_list(project_root):
     modules = find_modules(project_root)
     if not modules:
-        print("ERROR: no modules found — confirm this is a multimodule project", file=sys.stderr)
+        print("ERROR: no modules found â€” confirm this is a multimodule project", file=sys.stderr)
         sys.exit(1)
 
     print(f"MODULES FOUND: {len(modules)}")
     for i, (name, path) in enumerate(modules, start=1):
-        print(f"  [{i}] {name:<30} → {path}")
+        print(f"  [{i}] {name:<30} â†’ {path}")
 
 
 def cmd_select(module_name, project_root):
@@ -67,7 +67,7 @@ def cmd_select(module_name, project_root):
     print(f"MODULE: {name}")
     print(f"ROOT: {mod_path}")
     print(f"POM: {pom_path}")
-    print(f"JACOCO: {jacoco_path if os.path.isfile(jacoco_path) else 'NOT_FOUND — run mvn test jacoco:report -pl ' + name}")
+    print(f"JACOCO: {jacoco_path if os.path.isfile(jacoco_path) else 'NOT_FOUND - run scripts/run-jacoco-report.py <module_path>'}")
 
 
 if __name__ == "__main__":
@@ -96,3 +96,4 @@ if __name__ == "__main__":
     else:
         print(f"ERROR: unknown mode '{mode}'. Use --list or --select.", file=sys.stderr)
         sys.exit(1)
+

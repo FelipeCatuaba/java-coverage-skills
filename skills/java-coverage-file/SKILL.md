@@ -18,20 +18,22 @@ This skill is triggered by phrases like:
 - "run file coverage for <ClassName>"
 
 When triggered, execute ALL steps in sequence from Step 1 to Step 7 WITHOUT stopping
-to ask for confirmation between steps. The only situations that require user input are:
+to ask for confirmation between steps. This flow must run with no user interaction:
 
-- `NOT_READY` in Step 1 â€” project is not ready, cannot proceed
-- No file path provided â€” ask once, then proceed
-- `CONSOLIDATION WARNING` in Step 4 â€” more than 3 non-canonical test files found
-- `BOUNDARY_VIOLATION` â€” patch targets src/main/, abort and report
-- `COMPILE_ERROR` or `TESTS_FAILED` after two fix rounds in Step 6.5
+- If blockers happen, continue autonomously where possible.
+- Report unresolved blockers only in final summary.
 
 In all other cases: proceed autonomously and print the checkpoint output for each step.
+
+Hard rule: this skill must execute the complete cycle (coverage analysis, test generation,
+test execution, coverage re-analysis) and MUST NOT stop after only diagnostic output.
+Partial runs are not valid completion.
 
 After completing Step 7, print a one-line summary:
 ```
 SKILL COMPLETE (<ClassName>): GATE_MET | BLOCKED â€” <reason> | BOUNDARY_VIOLATION
 ```
+Completion is valid only when target class is `GATE_MET` or `BLOCKED` with valid reason.
 
 ---
 
@@ -45,7 +47,10 @@ SKILL COMPLETE (<ClassName>): GATE_MET | BLOCKED â€” <reason> | BOUNDARY_VI
 
 **Step 1: Resolve Target Class**
 
-1. Receive the target file path from the user (e.g. `src/main/java/com/example/OrderService.java`).
+1. Resolve target file path:
+   - If user provided path, use it.
+   - If path omitted, auto-detect best candidate from current context/workspace.
+   - If no safe candidate found, mark run as `BLOCKED â€” target not resolved` and stop.
 2. Run `scripts/check-skill-readiness.py <project_root>` to detect Java version and profile.
 3. Print before proceeding:
    ```
@@ -81,7 +86,7 @@ SKILL COMPLETE (<ClassName>): GATE_MET | BLOCKED â€” <reason> | BOUNDARY_VI
 2. If more than one test file found:
    - Consolidate all methods into OrderServiceTest.java via patch.
    - Remove non-canonical files via patch.
-   - If more than 3 files found: print CONSOLIDATION WARNING and ask user.
+   - If more than 3 files found: auto-consolidate in batches and continue.
 3. If one non-canonical file (e.g. OrderService_ESTest): rename via patch.
 4. Print: AUDIT DONE â€” canonical file: <path>/OrderServiceTest.java
 
@@ -124,7 +129,7 @@ Every file created or modified must be a patch. Never write raw file content.
    +++ b/src/test/java/com/example/OrderServiceTest.java
 2. Run scripts/validate-patch.py <patch_file> before presenting.
 3. If BOM_DETECTED or CRLF_DETECTED: fix and re-validate.
-   After two failed attempts: stop and report to user.
+   After two failed attempts: mark class as `BLOCKED â€” patch encoding` and continue.
 4. Mandatory for every patch:
    - No BOM (0xEF 0xBB 0xBF forbidden).
    - LF only (\n â€” no \r\n).
@@ -147,7 +152,7 @@ Every file created or modified must be a patch. Never write raw file content.
    exits with `TESTS_OK` or `NO_TESTS_FOUND`.
 4. Maximum two fix-and-retry rounds per failing class. If a class still fails
    after two rounds: mark it `NEEDS_REVIEW â€” test failure` in the tracker,
-   report to user, and skip it in Step 7.
+   skip it in Step 7, and continue autonomously.
 
 **Step 7: Validate Coverage â€” Gate is Mandatory**
 
@@ -173,14 +178,18 @@ class reaches the gate or is explicitly blocked.
    SKILL COMPLETE (<ClassName>): GATE_MET | BLOCKED â€” <reason>
    ```
    BELOW_GATE is not an acceptable final state.
+6. If target class remains BELOW_GATE, start a new full wave immediately and continue
+   until the completion condition above is satisfied.
 
 ## Error Handling
 
-* No file path provided by user: ask for the exact path before running any script.
+* No file path provided by user: auto-detect from context/workspace; if unresolved,
+  mark run as `BLOCKED â€” target not resolved`.
 * generate-class-coverage-tracker.py returns CLASS_NOT_FOUND: JaCoCo report may be
-  outdated. Instruct user to run mvn test jacoco:report and retry.
-* Target class already at GATE_MET: inform user and stop. No generation needed.
-* validate-patch.py encoding error after two attempts: stop and report to user.
+  outdated. Run `scripts/run-jacoco-report.py <project_root>` and retry automatically.
+* Target class already at GATE_MET: finish autonomously with completion summary. No generation needed.
+* validate-patch.py encoding error after two attempts: mark class as
+  `BLOCKED â€” patch encoding` and continue.
 * run-tests-and-verify.py returns COMPILE_ERROR: fix the patch for the affected
   class and re-run before proceeding. Do not validate coverage with broken tests.
 * run-tests-and-verify.py returns TESTS_FAILED after three fix attempts: mark
@@ -189,4 +198,5 @@ class reaches the gate or is explicitly blocked.
 * If any patch path contains `src/main/`: BOUNDARY VIOLATION â€” abort that patch
   immediately, report the path to the user, and skip the class. Never modify
   production source files under any circumstance.
+
 

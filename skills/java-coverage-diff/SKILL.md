@@ -19,19 +19,22 @@ This skill is triggered by phrases like:
 - "cover only my changes"
 
 When triggered, execute ALL steps in sequence from Step 1 to Step 7 WITHOUT stopping
-to ask for confirmation between steps. The only situations that require user input are:
+to ask for confirmation between steps. This flow must run with no user interaction:
 
-- `NOT_A_GIT_REPO` in Step 1 â€” cannot resolve diff
-- `NO_JAVA_FILES` in Step 1 â€” no production classes changed
-- `BOUNDARY_VIOLATION` â€” patch targets src/main/, abort and report
-- `COMPILE_ERROR` or `TESTS_FAILED` after two fix rounds in Step 6.5
+- If blockers happen, continue autonomously where possible.
+- Report unresolved blockers only in final summary.
 
 In all other cases: proceed autonomously and print the checkpoint output for each step.
+
+Hard rule: this skill must execute the complete cycle (diff-line coverage analysis,
+test generation, test execution, diff-line coverage re-analysis) and MUST NOT stop
+after only diagnostic output. Partial runs are not valid completion.
 
 After completing Step 7, print the final in-memory progress view and a one-line summary:
 ```
 SKILL COMPLETE (diff): <N> GATE_MET / <N> BLOCKED â€” <reason>
 ```
+Completion is valid only when there are zero `BELOW_GATE` classes in diff scope.
 
 ---
 
@@ -53,7 +56,7 @@ SKILL COMPLETE (diff): <N> GATE_MET / <N> BLOCKED â€” <reason>
    src/main/java/com/example/OrderService.java
    src/main/java/com/example/PaymentValidator.java
    ```
-3. If no .java files found in diff: inform the user and stop.
+3. If no .java files found in diff: mark run as `BLOCKED â€” no diff scope` and stop.
    Do not process test files â€” filter out any path under src/test/.
 4. Run `scripts/check-skill-readiness.py <project_root>`.
 5. Print:
@@ -132,7 +135,7 @@ Every file created or modified must be a patch. Never write raw file content.
    +++ b/src/test/java/com/example/OrderServiceTest.java
 2. Run scripts/validate-patch.py <patch_file> before presenting.
 3. If BOM_DETECTED or CRLF_DETECTED: fix and re-validate.
-   After two failed attempts: stop and report to user.
+   After two failed attempts: mark class as `BLOCKED â€” patch encoding` and continue.
 4. Mandatory for every patch:
    - No BOM (0xEF 0xBB 0xBF forbidden).
    - LF only (\n â€” no \r\n).
@@ -155,7 +158,7 @@ Every file created or modified must be a patch. Never write raw file content.
    exits with `TESTS_OK` or `NO_TESTS_FOUND`.
 4. Maximum two fix-and-retry rounds per failing class. If a class still fails
    after two rounds: mark it `NEEDS_REVIEW â€” test failure` in the tracker,
-   report to user, and skip it in Step 7.
+   skip it in Step 7, and continue autonomously.
 
 **Step 7: Validate Coverage â€” Gate is Mandatory**
 
@@ -186,17 +189,19 @@ finish until every changed class reaches the gate or is explicitly blocked.
    SKILL COMPLETE (diff): <N> GATE_MET / <N> BLOCKED â€” <reason>
    ```
    BELOW_GATE is not an acceptable final state.
+6. If any changed class remains BELOW_GATE, start a new full wave immediately and
+   continue until the completion condition above is satisfied.
 
 ## Error Handling
 
-* resolve-git-diff.py returns NO_JAVA_FILES: no uncommitted production Java classes found.
-  Inform user and stop.
-* resolve-git-diff.py returns NOT_A_GIT_REPO: inform user and stop.
-* check-diff-line-gate.py returns REPORT_NOT_FOUND: instruct user to run
-  mvn test jacoco:report and retry.
+* resolve-git-diff.py returns NO_JAVA_FILES: mark run as `BLOCKED â€” no diff scope`.
+* resolve-git-diff.py returns NOT_A_GIT_REPO: mark run as `BLOCKED â€” not a git repo`.
+* check-diff-line-gate.py returns REPORT_NOT_FOUND: run
+  `scripts/run-jacoco-report.py <project_root>` and retry automatically.
 * Any generated patch targeting a file not in the diff list: abort that patch and
   report the path violation before continuing with the next class.
-* validate-patch.py encoding error after two attempts: stop and report to user.
+* validate-patch.py encoding error after two attempts: mark class as
+  `BLOCKED â€” patch encoding` and continue.
 * run-tests-and-verify.py returns COMPILE_ERROR: fix the patch for the affected
   class and re-run before proceeding. Do not validate coverage with broken tests.
 * run-tests-and-verify.py returns TESTS_FAILED after three fix attempts: mark
@@ -205,4 +210,5 @@ finish until every changed class reaches the gate or is explicitly blocked.
 * If any patch path contains `src/main/`: BOUNDARY VIOLATION â€” abort that patch
   immediately, report the path to the user, and skip the class. Never modify
   production source files under any circumstance.
+
 
