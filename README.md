@@ -93,3 +93,30 @@ Arquivos de apoio:
 
 - [CHANGELOG.md](./CHANGELOG.md)
 - [RELEASE.md](./RELEASE.md)
+
+## Uso por caminho absoluto (como no seu pedido)
+
+Voce pode pedir explicitamente com caminho local, por exemplo:
+
+- `Utilize a skill C:\Users\Felipe Catuaba\Projetos\skills\java-coverage-skills no projeto hermes-finance`
+
+Comportamento esperado do agente:
+
+1. Ler `skill-pack.xml` para descobrir as skills disponiveis.
+2. Resolver automaticamente a skill `java-coverage-full` quando o pedido for cobertura completa.
+3. Executar os scripts da skill usando Maven via prioridade:
+   - `mvn` no PATH;
+   - `mvnw.cmd` (Windows) no `project_root`;
+   - `mvnw` (Linux/macOS) no `project_root`.
+4. Tratar classes sem branch aplicavel como `BRANCHES = N/A` no gate.
+
+Isso evita falha por "mvn not found" em Windows quando o projeto usa wrapper Maven.
+
+## Performance e consistencia (obrigatorio)
+
+- Nunca execute comandos Maven em paralelo no mesmo `project_root`.
+- Fluxo recomendado por onda:
+  1. `run-tests-and-verify.py` (executa `mvn test` uma vez)
+  2. `run-jacoco-report.py` (fast path: `-DskipTests jacoco:report`)
+  3. fallback automatico para `test jacoco:report` apenas se artefatos JaCoCo estiverem ausentes.
+- Isso reduz tempo total sem quebrar o gate: validacao de testes continua obrigatoria e o gate e sempre calculado do JaCoCo final.

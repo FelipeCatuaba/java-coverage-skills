@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
 Reads JaCoCo XML and checks which classes meet the coverage gate.
-Usage: python3 check-coverage-gate.py <project_root> <jacoco_xml> [--class Name] [--classes A,B]
-Stdout: result table with GATE_MET / NEEDS_REVIEW per class
-Stderr: REPORT_NOT_FOUND
+Usage: python check-coverage-gate.py <project_root> <jacoco_xml> [--class Name] [--classes A,B]
+
+Rule:
+- LINE gate is always required.
+- BRANCH gate is required only when branch counter exists (>0 branches).
 """
-import sys
 import os
+import sys
 import xml.etree.ElementTree as ET
 
 LINE_GATE = 92
 BRANCH_GATE = 90
+
 
 def parse_coverage(xml_path, filter_classes=None):
     if not os.path.isfile(xml_path):
@@ -21,7 +24,7 @@ def parse_coverage(xml_path, filter_classes=None):
         tree = ET.parse(xml_path)
         root = tree.getroot()
     except ET.ParseError as e:
-        print(f"REPORT_NOT_FOUND: could not parse XML — {e}", file=sys.stderr)
+        print(f"REPORT_NOT_FOUND: could not parse XML - {e}", file=sys.stderr)
         sys.exit(1)
 
     results = []
@@ -45,27 +48,36 @@ def parse_coverage(xml_path, filter_classes=None):
             total_branches = branches_covered + branches_missed
 
             line_pct = round(lines_covered / total_lines * 100) if total_lines > 0 else 0
-            branch_pct = round(branches_covered / total_branches * 100) if total_branches > 0 else 0
 
-            gate_met = line_pct >= LINE_GATE and branch_pct >= BRANCH_GATE
+            if total_branches > 0:
+                branch_pct = round(branches_covered / total_branches * 100)
+                branch_display = f"{branch_pct}%"
+                gate_met = line_pct >= LINE_GATE and branch_pct >= BRANCH_GATE
+            else:
+                branch_pct = None
+                branch_display = 'N/A'
+                gate_met = line_pct >= LINE_GATE
+
             status = 'GATE_MET' if gate_met else 'BELOW_GATE'
-
-            results.append({'class': name, 'lines': line_pct, 'branches': branch_pct, 'status': status})
+            results.append({'class': name, 'lines': line_pct, 'branches': branch_display, 'status': status})
 
     return results
 
+
 def main(project_root, xml_path, filter_classes=None):
+    _ = project_root  # reserved for compatibility
     results = parse_coverage(xml_path, filter_classes)
 
     header = f"{'CLASS':<40} | {'LINES%':>6} | {'BRANCHES%':>9} | STATUS"
     print(header)
     print('-' * len(header))
     for r in results:
-        print(f"{r['class']:<40} | {r['lines']:>5}% | {r['branches']:>8}% | {r['status']}")
+        print(f"{r['class']:<40} | {r['lines']:>5}% | {r['branches']:>9} | {r['status']}")
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usage: check-coverage-gate.py <project_root> <jacoco_xml> [--class Name] [--classes A,B]", file=sys.stderr)
+        print('Usage: check-coverage-gate.py <project_root> <jacoco_xml> [--class Name] [--classes A,B]', file=sys.stderr)
         sys.exit(1)
 
     project_root = sys.argv[1]
