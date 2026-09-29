@@ -1,36 +1,29 @@
 # Release Process
 
-This package uses Semantic Versioning (`MAJOR.MINOR.PATCH`).
-Central source of truth: `skill-pack.xml` (`<version>`).
+Semantic Versioning. Source of truth: `skill-pack.xml` (`<version>`).
 
-## 1. Update Version
+## 1. Update version
 
-1. Update `<version>` in `skill-pack.xml`.
-2. Add a new section in `CHANGELOG.md`.
+1. Set `<version>` in `skill-pack.xml`.
+2. Add a section in `CHANGELOG.md`.
 
 ## 2. Commit
 
-```bash
-git add skill-pack.xml CHANGELOG.md RELEASE.md README.md
+```
+git add skill-pack.xml CHANGELOG.md RELEASE.md README.md skills
 git commit -m "chore(release): vX.Y.Z"
 ```
 
 ## 3. Tag
 
-```bash
-git tag -a vX.Y.Z -m "java-coverage-skills vX.Y.Z"
-git push origin main
-git push origin vX.Y.Z
-```
+Tag `vX.Y.Z` from the default branch and push the tag.
 
-## 4. Publish on GitHub
+## 4. Publish
 
-1. Open GitHub Releases.
-2. Create release from tag `vX.Y.Z`.
-3. Copy notes from `CHANGELOG.md`.
+Create a GitHub Release from that tag. Copy notes from `CHANGELOG.md`.
 
-## Version Bump Rules
+## Bump rules
 
-- `PATCH`: docs/instruction fixes, non-breaking behavior adjustments.
-- `MINOR`: new capabilities or backward-compatible behavior additions.
-- `MAJOR`: breaking changes in flow, required inputs, or output contracts.
+- `PATCH`: wording or reference fixes.
+- `MINOR`: new guidance that stays compatible (same skill name and flow).
+- `MAJOR`: skill rename, removed skills, or a different agent contract.

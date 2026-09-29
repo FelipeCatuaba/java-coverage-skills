@@ -2,15 +2,11 @@
 <skillPack>
   <groupId>br.com.felipe.skills</groupId>
   <artifactId>java-coverage-skills</artifactId>
-  <version>1.0.2</version>
+  <version>2.1.0</version>
   <name>java-coverage-skills</name>
-  <description>Coverage automation skills for Java projects</description>
+  <description>Coverage playbook for Java Maven and Gradle projects</description>
 
   <skills>
-    <skill path="skills/java-coverage-full/SKILL.md" />
-    <skill path="skills/java-coverage-module/SKILL.md" />
-    <skill path="skills/java-coverage-file/SKILL.md" />
-    <skill path="skills/java-coverage-diff/SKILL.md" />
+    <skill path="skills/java-coverage/SKILL.md" />
   </skills>
 </skillPack>
-
