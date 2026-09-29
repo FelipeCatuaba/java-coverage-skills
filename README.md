@@ -1,95 +1,88 @@
 # java-coverage-skills
 
-Conjunto de skills para automação de cobertura de testes Java com foco em Maven + JaCoCo.
+Skill de cobertura Java para o agente: um playbook, sem scripts. Funciona em
+projetos **Maven** e **Gradle**. O agente detecta o build pelos arquivos do
+repo e usa o wrapper do próprio projeto no shell do ambiente.
 
-Escopos disponíveis:
+Skill: `java-coverage`
 
-- `java-coverage-full`: cobertura do projeto inteiro.
-- `java-coverage-module`: cobertura de um módulo específico.
-- `java-coverage-file`: cobertura de uma classe/arquivo específico.
-- `java-coverage-diff`: cobertura apenas do que está em desenvolvimento (não commitado), com gate por linhas em diff.
+Escopos (inferidos do pedido):
 
-**Como Importar No Seu Workspace**
-Você pode usar este pacote em um workspace local ou dentro de `.agents/.claude`.
+- `full` — projeto inteiro (default)
+- `module` — um módulo
+- `file` — uma classe
+- `diff` — só o que não está commitado
 
-Opção 1: copiar a pasta inteira para o workspace:
+Gate: `LINES >= 92%` e `BRANCHES >= 90%` (branch N/A em interface/enum sem
+lógica). No máximo 3 ondas. O que não bater o gate termina como `STILL_BELOW`.
 
-```bash
-cp -r java-coverage-skills /caminho/do/seu-workspace/skills/
+## Como importar
+
+Copie a pasta da skill para o lugar de skills do workspace:
+
+```
+skills/java-coverage/
 ```
 
-Opção 2: versionar como subpasta do repositório do projeto:
+Ou para o diretório de skills do agente do projeto (por exemplo
+`.agents/.claude/skills/java-coverage` ou `.cursor/skills/java-coverage`).
 
-```bash
-mkdir -p .agents/.claude/skills
-cp -r java-coverage-skills .agents/.claude/skills/
-```
+O nome da skill é o da pasta: `java-coverage`.
 
-Depois da importação, as skills ficam disponíveis pelos nomes de cada pasta (`java-coverage-full`, `java-coverage-module`, `java-coverage-file`, `java-coverage-diff`).
+## Como usar
 
-**Como Usar (Exemplos de Prompt)**
-No chat com o agente, peça explicitamente o escopo desejado.
+Peça o escopo no chat. Exemplos:
 
 Projeto inteiro:
 
-- `Use a skill java-coverage-full no projeto /path/do-projeto`
-- `Gere cobertura completa do projeto /path/do-projeto`
-- `Use a skill java-coverage-full para o projeto tal`
+- `Use a skill java-coverage no projeto <path>`
+- `Gere cobertura completa do projeto`
 
-Se você não informar caminho no `java-coverage-full`, o agente deve inferir o projeto
-pelos projetos abertos no workspace/IDE. Somente quando não houver candidato claro
-ele deve pedir explicitamente o caminho.
+Módulo:
 
-Módulo específico:
+- `Use java-coverage no módulo billing`
+- `Gere cobertura só do módulo payment-service`
 
-- `Use a skill java-coverage-module no módulo billing do projeto /path/do-projeto`
-- `Rode cobertura apenas no módulo payment-service`
+Arquivo / classe:
 
-Arquivo/classe específica:
+- `Gere cobertura para src/main/java/com/acme/OrderService.java`
+- `Cubra a classe OrderService`
 
-- `Use a skill java-coverage-file para src/main/java/com/acme/OrderService.java`
-- `Gere cobertura para a classe OrderService`
+Só o que você desenvolveu:
 
-Somente o que você desenvolveu:
+- `Gere cobertura do que ainda não foi commitado`
+- `Cubra só o meu diff`
 
-- `Use a skill java-coverage-diff neste projeto`
-- `Gere cobertura só para o que ainda não foi commitado`
+Se o caminho do projeto não vier no pedido, o agente usa o workspace aberto.
 
-**Como As Skills Funcionam**
-Fluxo base (todas):
+## Como funciona
 
-1. Valida prontidão do projeto.
-2. Valida dependências de teste no `pom.xml` (`junit`, `mockito`, `jacoco`).
-3. Analisa cobertura inicial.
-4. Planeja geração por prioridade de gap.
-5. Gera/ajusta testes.
-6. Compila e executa testes.
-7. Reanalisa cobertura e repete em ondas até bater gate ou bloquear com motivo explícito.
+1. Detecta Maven (`pom.xml`) ou Gradle (`settings.gradle*` / `build.gradle*`).
+2. Confere JUnit, Mockito e JaCoCo. Se faltar, para e explica — não altera o build sozinho.
+3. Roda os testes + relatório JaCoCo pelo wrapper do repo.
+4. Lê o XML do JaCoCo (procura; não chuta um path).
+5. Escreve ou completa `<ClassName>Test.java` em `src/test/`.
+6. Repete no máximo 3 vezes.
 
-Regras de gate:
+Regras fixas:
 
-- `full/module/file`: gate por classe (`LINES >= 92%` e `BRANCHES >= 90%`, com exceções de classes sem branch aplicável).
-- `diff`: gate só nas linhas alteradas não commitadas (`staged`, `unstaged`, `untracked`), sem penalizar linhas antigas fora do diff.
+- Nunca edita `src/main/`.
+- Nunca adiciona exclusão Sonar/JaCoCo para inflar o número.
+- Espelha o estilo de teste do projeto (JUnit 4 ou 5, nomes, tags, classe base).
+- Cada teste afirma um contrato observável (valor, mensagem, interação).
+  Ramo sem contrato fica `BLOCKED — no contract` — não se inventa teste
+  só para pintar o JaCoCo.
+- Progresso fica no chat. Não cria `docs/coverage-tracker-*.md`.
 
-Política de progresso:
+## Pré-requisitos
 
-- `full/module`: geram tracker em `docs/*.md` e atualizam a cada onda.
-- `file/diff`: progresso em memória/console (sem tracker persistido).
+- Projeto Java com Maven ou Gradle.
+- JaCoCo gerando relatório XML.
+- JUnit (4 ou 5) já no projeto — ou o usuário autoriza adicionar o que falta.
 
-Regra importante:
+## Versionamento
 
-- Se já existe teste para uma classe mas ela continua abaixo do gate, a skill deve adicionar novos testes no arquivo existente para cobrir os gaps.
-
-**Pré-Requisitos**
-
-- Projeto Java com Maven.
-- JaCoCo disponível no build.
-- Recomendado: `mvn test jacoco:report` executável no projeto.
-
-**Versionamento**
-A versão do pacote é centralizada em [skill-pack.xml](./skill-pack.xml) no campo `<version>`.
-
-Arquivos de apoio:
+Versão em [skill-pack.xml](./skill-pack.xml) (`<version>`).
 
 - [CHANGELOG.md](./CHANGELOG.md)
 - [RELEASE.md](./RELEASE.md)
