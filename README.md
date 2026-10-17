@@ -6,19 +6,14 @@ repo e usa o wrapper do próprio projeto no shell do ambiente.
 
 Skill: `java-coverage`
 
-Escopos (inferidos do pedido):
-
-- `full` — projeto inteiro (default)
-- `module` — um módulo
-- `file` — uma classe
-- `diff` — só o que não está commitado
+Escopo: Delegar por módulos em projetos java multi-módulos
 
 Gate: `LINES >= 92%` e `BRANCHES >= 90%` (branch N/A em interface/enum sem
 lógica). No máximo 3 ondas. O que não bater o gate termina como `STILL_BELOW`.
 
 ## Como importar
 
-Copie a pasta da skill para o lugar de skills do workspace:
+Clone o repositório da skill para seu do workspace:
 
 ```
 skills/java-coverage/
@@ -36,22 +31,11 @@ Peça o escopo no chat. Exemplos:
 Projeto inteiro:
 
 - `Use a skill java-coverage no projeto <path>`
-- `Gere cobertura completa do projeto`
 
 Módulo:
 
-- `Use java-coverage no módulo billing`
+- `Use java-coverage no módulo infrastructure do projeto <path>`
 - `Gere cobertura só do módulo payment-service`
-
-Arquivo / classe:
-
-- `Gere cobertura para src/main/java/com/acme/OrderService.java`
-- `Cubra a classe OrderService`
-
-Só o que você desenvolveu:
-
-- `Gere cobertura do que ainda não foi commitado`
-- `Cubra só o meu diff`
 
 Se o caminho do projeto não vier no pedido, o agente usa o workspace aberto.
 
